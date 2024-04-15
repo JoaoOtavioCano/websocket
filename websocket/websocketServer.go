@@ -4,13 +4,39 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
 )
 
-type WebSocketServer struct {}
+type WebSocketServer struct {
+	listener net.TCPListener
+}
+
+func NewWebSocketSever(url string) (*WebSocketServer, error) {
+	add, err := net.ResolveTCPAddr("tcp", url)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	
+	l, err := net.ListenTCP("tcp", add)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	return &WebSocketServer{
+		listener: *l,
+	}, nil
+}
+
+func (s *WebSocketServer) ListenAndServe() {
+	http.HandleFunc("/", s.handshake)
+
+	http.Serve(&s.listener, nil)
+}
 
 func (ws *WebSocketServer) handshake(w http.ResponseWriter, r *http.Request) {
-
 	checkReqMethod := r.Method == "GET"
 	checkUpgradeHeader := len(r.Header[http.CanonicalHeaderKey("Upgrade")]) == 1 && r.Header[http.CanonicalHeaderKey("Upgrade")][0] == "websocket"
 	checkConnectionHeader := len(r.Header[http.CanonicalHeaderKey("Connection")]) == 1 && r.Header[http.CanonicalHeaderKey("Connection")][0] == "Upgrade"
@@ -21,6 +47,8 @@ func (ws *WebSocketServer) handshake(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	r.Close = false
 
 	header := http.CanonicalHeaderKey("Sec-WebSocket-Key")
 	websocketKey := r.Header[header][0]

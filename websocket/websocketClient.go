@@ -4,15 +4,20 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 )
 
 type WebSocketClient struct {
 	client http.Client
+	conn   net.TCPConn
 }
 
-func (c *WebSocketClient) handshake(rawURL string) error {
+func (c *WebSocketClient) Handshake() error {
+
+	rawURL := fmt.Sprintf("http://%s", c.conn.RemoteAddr().String())
+	fmt.Println(rawURL)
 
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -35,6 +40,7 @@ func (c *WebSocketClient) handshake(rawURL string) error {
 		Method: "GET",
 		Header: *h,
 		URL:    parsedURL,
+		Close:  false,
 	}
 
 	resp, err := c.client.Do(req)
@@ -47,7 +53,6 @@ func (c *WebSocketClient) handshake(rawURL string) error {
 	checkConnectionHeader := len(resp.Header[http.CanonicalHeaderKey("Connection")]) == 1 && resp.Header[http.CanonicalHeaderKey("Connection")][0] == "Upgrade"
 	checkWebsocketAcceptHeader := len(resp.Header[http.CanonicalHeaderKey("Sec-WebSocket-Accept")]) == 1 && resp.Header[http.CanonicalHeaderKey("Sec-WebSocket-Accept")][0] == CreateWebsocketAcceptValue(websocketKey)
 
-
 	if !checkStatusCode || !checkUpgradeHeader || !checkConnectionHeader || !checkWebsocketAcceptHeader {
 		fmt.Println("handshake error: connection not established")
 		return fmt.Errorf("handshake error: connection not established")
@@ -56,8 +61,25 @@ func (c *WebSocketClient) handshake(rawURL string) error {
 	return nil
 }
 
-func (wc *WebSocketClient) Connect(url string) {
-	wc.handshake(url)
+func NewWebSocketClient(url string) (*WebSocketClient, error) {
+	add, err := net.ResolveTCPAddr("tcp", url)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	conn, err := net.DialTCP("tcp", nil, add)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	c := &http.Client{}
+
+	return &WebSocketClient{
+		conn:   *conn,
+		client: *c,
+	}, nil
 }
 
 func createWebsocketKeyValue() (string, error) {
