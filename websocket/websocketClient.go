@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -46,34 +45,31 @@ func (c *WebSocketClient) Handshake() error {
 	req.Write(&c.conn)
 
 	buf := make([]byte, 4096)
+
 	for {
-		nbytes, err := c.conn.Read(buf)
+		_, err := c.conn.Read(buf)
 		if err != nil {
-			log.Printf("Error reading from socket: %v\n", err)
+			fmt.Printf("Error reading from socket: %v\n", err)
 			break
 		}
 
-		log.Printf("Received %d bytes of data: %s\n", nbytes, string(buf[:nbytes]))
-
 		break
 	}
-	log.Println("Saiu")
-	/*
-		resp, err := c.client.Do(req)
-				if err != nil {
-					return err
-				}
 
-				checkStatusCode := resp.StatusCode == http.StatusSwitchingProtocols
-				checkUpgradeHeader := len(resp.Header[http.CanonicalHeaderKey("Upgrade")]) == 1 && resp.Header[http.CanonicalHeaderKey("Upgrade")][0] == "websocket"
-				checkConnectionHeader := len(resp.Header[http.CanonicalHeaderKey("Connection")]) == 1 && resp.Header[http.CanonicalHeaderKey("Connection")][0] == "Upgrade"
-				checkWebsocketAcceptHeader := len(resp.Header[http.CanonicalHeaderKey("Sec-WebSocket-Accept")]) == 1 && resp.Header[http.CanonicalHeaderKey("Sec-WebSocket-Accept")][0] == CreateWebsocketAcceptValue(websocketKey)
+	resp := &HandshakeResponse{}
 
-				if !checkStatusCode || !checkUpgradeHeader || !checkConnectionHeader || !checkWebsocketAcceptHeader {
-					fmt.Println("handshake error: connection not established")
-					return fmt.Errorf("handshake error: connection not established")
-				}
-	*/
+	resp.Decode(buf)
+
+	checkStatusCode := resp.statusCode == http.StatusSwitchingProtocols
+	checkUpgradeHeader := resp.upgrade != "" && resp.upgrade == "websocket"
+	checkConnectionHeader := resp.connection != "" && resp.connection == "Upgrade"
+	checkWebsocketAcceptHeader := resp.secWebsocketAccept != "" && resp.secWebsocketAccept == CreateWebsocketAcceptValue(websocketKey)
+
+	if !checkStatusCode || !checkUpgradeHeader || !checkConnectionHeader || !checkWebsocketAcceptHeader {
+		fmt.Println("handshake error: connection not established")
+		return fmt.Errorf("handshake error: connection not established")
+	}
+
 	return nil
 }
 

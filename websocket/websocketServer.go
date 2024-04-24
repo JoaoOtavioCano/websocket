@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -165,4 +166,16 @@ func (r *HandshakeResponse) Encode() (data []byte) {
 
 	return []byte(fmt.Sprintf("%s %d %s\nConnection: %s\nSec-Websocket-Accept: %s\nUpgrade: %s\n", 
 	r.proto, r.statusCode, r.statusText, r.connection, r.secWebsocketAccept, r.upgrade))
+}
+
+func (r *HandshakeResponse) Decode(data []byte) {
+	dataString := string(data)
+
+	r.proto = strings.Split(strings.Split(dataString, "\n")[0], " ")[0]
+	r.statusCode, _ = strconv.Atoi(strings.Split(strings.Split(dataString, "\n")[0], " ")[1])
+	r.statusText = strings.Split(strings.Split(dataString, "\n")[0], " ")[2] + " " + strings.Split(strings.Split(dataString, "\n")[0], " ")[3]
+	r.connection = strings.Split(strings.Split(dataString, "\n")[1], " ")[1]
+	r.secWebsocketAccept = strings.Split(strings.Split(dataString, "\n")[2], " ")[1]
+	r.upgrade = strings.Split(strings.Split(dataString, "\n")[3], " ")[1]
+
 }
