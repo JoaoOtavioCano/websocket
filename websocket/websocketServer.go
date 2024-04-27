@@ -137,19 +137,19 @@ func parseHandshakeRequest(buffer []byte) *HandshakeRequest {
 
 	for _, headerData := range dataString {
 
-		if strings.Contains(headerData, "/ HTTP/") {
+		if strings.Contains(headerData, " HTTP/") {
 			req.method, _, _ = strings.Cut(headerData, " ")
 		} else {
-			switch header, value, _ := strings.Cut(headerData, ": "); header {
-			case "Host":
+			switch header, value, _ := strings.Cut(headerData, ": "); strings.ToLower(header) {
+			case "host":
 				req.host = strings.TrimSpace(value)
-			case "Connection":
+			case "connection":
 				req.connection = strings.TrimSpace(value)
-			case "Sec-Websocket-Key":
+			case "sec-websocket-key":
 				req.secWebsocketKey = strings.TrimSpace(value)
-			case "Sec-Websocket-Version":
+			case "sec-websocket-version":
 				req.secWebsocketVersion = strings.TrimSpace(value)
-			case "Upgrade":
+			case "upgrade":
 				req.upgrade = strings.TrimSpace(value)
 			}
 		}
