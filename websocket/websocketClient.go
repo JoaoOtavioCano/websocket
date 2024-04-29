@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"bufio"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -44,26 +45,19 @@ func (c *WebSocketClient) Handshake() error {
 
 	req.Write(&c.conn)
 
-	buf := make([]byte, 4096)
+	buf := bufio.NewReader(&c.conn)
 
-	for {
-		_, err := c.conn.Read(buf)
-		if err != nil {
-			fmt.Printf("Error reading from socket: %v\n", err)
-			break
-		}
-
-		break
+	resp, err := http.ReadResponse(buf, req)
+	if err != nil {
+		fmt.Println(err)
 	}
 
-	resp := &HandshakeResponse{}
+	fmt.Println(resp)
 
-	resp.Decode(buf)
-
-	checkStatusCode := resp.statusCode == http.StatusSwitchingProtocols
-	checkUpgradeHeader := resp.upgrade != "" && resp.upgrade == "websocket"
-	checkConnectionHeader := resp.connection != "" && resp.connection == "Upgrade"
-	checkWebsocketAcceptHeader := resp.secWebsocketAccept != "" && resp.secWebsocketAccept == CreateWebsocketAcceptValue(websocketKey)
+	checkStatusCode := resp.StatusCode == http.StatusSwitchingProtocols
+	checkUpgradeHeader := resp.Header.Get("Upgrade") != "" && resp.Header.Get("Upgrade") == "websocket"
+	checkConnectionHeader := resp.Header.Get("Connection") != "" && resp.Header.Get("Connection") == "Upgrade"
+	checkWebsocketAcceptHeader := resp.Header.Get("Sec-Websocket-Accept") != "" && resp.Header.Get("Sec-Websocket-Accept") == CreateWebsocketAcceptValue(websocketKey)
 
 	if !checkStatusCode || !checkUpgradeHeader || !checkConnectionHeader || !checkWebsocketAcceptHeader {
 		fmt.Println("handshake error: connection not established")

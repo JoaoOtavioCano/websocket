@@ -12,6 +12,7 @@ import (
 
 type WebSocketServer struct {
 	listener net.TCPListener
+	conn   net.Conn
 }
 
 type HandshakeRequest struct {
@@ -50,17 +51,40 @@ func NewWebSocketSever(url string) (*WebSocketServer, error) {
 	}, nil
 }
 
-func (s *WebSocketServer) ListenAndServe() {
+func (ws *WebSocketServer) ListenAndServe() {
 
-	fmt.Printf("Listening %s\n", s.listener.Addr())
+	fmt.Printf("Listening %s\n", ws.listener.Addr())
+
+	conn, err := ws.listener.Accept()
+	if err != nil {
+		fmt.Println(err)
+	}
+	go ws.handshake(conn)
 
 	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			fmt.Println(err)
+		if ws.conn != nil {
+			break
 		}
-		go s.handshake(conn)
 	}
+	fmt.Println("Saiu")
+}
+
+func (ws * WebSocketServer) ReadMessage() {
+	buf := make([]byte, 4096)
+
+	fmt.Println("Read")
+
+	for {
+		_, err := ws.conn.Read(buf)
+		if err != nil {
+			fmt.Printf("Error reading from socket: %v\n", err)
+			return
+		}
+
+		break
+	}
+
+	fmt.Println(string(buf))
 }
 
 func (ws *WebSocketServer) handshake(conn net.Conn) {
@@ -80,6 +104,7 @@ func (ws *WebSocketServer) handshake(conn net.Conn) {
 		break
 	}
 
+	/*
 	resp := &HandshakeResponse{}
 
 	checkReqMethod := r.method == "GET"
@@ -107,11 +132,38 @@ func (ws *WebSocketServer) handshake(conn net.Conn) {
 	resp.statusText = http.StatusText(resp.statusCode)
 	resp.proto = "HTTP/1.0"
 
+	fmt.Println(resp)
+
 	if _, err := conn.Write(resp.Encode()); err != nil {
 		fmt.Println(err)
 		return
 	}
 
+	*/
+
+
+	websocketKey := r.secWebsocketKey
+	websocketAcceptValue := CreateWebsocketAcceptValue(websocketKey)
+
+	h := &http.Header{}
+	h.Add("Upgrade", "websocket")
+	h.Add("Connection", "Upgrade")
+	h.Add("Sec-WebSocket-Accept", websocketAcceptValue)
+
+	resp := &http.Response{
+		StatusCode: http.StatusSwitchingProtocols,
+		Status: http.StatusText(http.StatusSwitchingProtocols),
+		Header: *h,
+	}
+
+	if err := resp.Write(conn) ; err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	ws.conn = conn
+
+	return
 }
 
 func CreateWebsocketAcceptValue(secWebsocketKey string) string {
