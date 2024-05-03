@@ -14,7 +14,7 @@ type Frame struct {
 	opcode        uint8  // 4 bits
 	mask          bool   // 1 bit
 	payloadLength uint64 // 7 bits or 7 + 16 bits or 7 + 64 bits
-	maskingKey    uint32 //This field is present if the mask bit is set to 1 and is absent if the mask bit is set to 0.
+	maskingKey    [4]byte //This field is present if the mask bit is set to 1 and is absent if the mask bit is set to 0.
 	payloadData   []byte
 }
 
@@ -102,11 +102,13 @@ func ParseFrame(data []byte) (*Frame, error) {
 	}
 
 	if f.mask {
-		maskingKey64, err := strconv.ParseUint("0000"+binary[maskingKeyBit:maskingKeyBit+32], 2, 64)
-		if err != nil {
-			return nil, err
+		for i := 0; i < 4; i++{
+			maskingKey, err := strconv.ParseUint(binary[maskingKeyBit+(8*i):maskingKeyBit+(8*(i+1))], 2, 64)
+			if err != nil {
+				return nil, err
+			}
+			f.maskingKey[i] = byte(maskingKey)
 		}
-		f.maskingKey = uint32(maskingKey64)
 	}
 
 	f.payloadData = make([]byte, int(f.payloadLength))
@@ -136,8 +138,8 @@ func ParseFrame(data []byte) (*Frame, error) {
 		start = end
 		end = start + 8
 	}
-
-	fmt.Printf("%d\n", f.payloadData)
+	
+	f.payloadData = maskData(f.maskingKey, f.payloadData)
 
 	return f, nil
 }
@@ -151,4 +153,14 @@ func convertToBinaryRep(data []byte) string {
 	}
 
 	return binaryRep
+}
+
+func maskData(maskingKey [4]byte, originalData []byte) []byte{
+	transformedData := make([]byte, len(originalData))
+
+	for i, _ := range originalData {
+		transformedData[i] =  originalData[i] ^ maskingKey[i%4]
+	}
+
+	return transformedData
 }
