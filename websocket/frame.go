@@ -37,10 +37,12 @@ const (
 )
 
 func ParseFrame(data []byte) (*Frame, error) {
-
+	
 	f := &Frame{}
-
+	
 	binary := convertToBinaryRep(data)
+	fmt.Println("data length ", len(data))
+	fmt.Println("binary length ", len(binary))
 
 	if binary[0] == 1 {
 		f.fin = true
@@ -145,7 +147,7 @@ func convertToBinaryRep(data []byte) string {
 	var binaryRep string
 
 	for _, byte := range data {
-		binaryRep = binaryRep + strconv.FormatUint(uint64(byte), 2)
+		binaryRep = binaryRep + fmt.Sprintf("%08b", uint8(byte))
 	}
 
 	return binaryRep
