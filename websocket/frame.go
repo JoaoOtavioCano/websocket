@@ -3,6 +3,7 @@ package websocket
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type Frame struct {
@@ -12,7 +13,7 @@ type Frame struct {
 	rsv3          bool   // 1 bit
 	opcode        uint8  // 4 bits
 	mask          bool   // 1 bit
-	payloadLength uint64  // 7 bits or 7 + 16 bits or 7 + 64 bits
+	payloadLength uint64 // 7 bits or 7 + 16 bits or 7 + 64 bits
 	maskingKey    uint32 //This field is present if the mask bit is set to 1 and is absent if the mask bit is set to 0.
 	payloadData   []byte
 }
@@ -37,53 +38,51 @@ const (
 )
 
 func ParseFrame(data []byte) (*Frame, error) {
-	
-	f := &Frame{}
-	
-	binary := convertToBinaryRep(data)
-	fmt.Println("data length ", len(data))
-	fmt.Println("binary length ", len(binary))
 
-	if binary[0] == 1 {
+	f := &Frame{}
+
+	binary := convertToBinaryRep(data)
+
+	if strings.Compare(string(binary[0]), "1") == 0 {
 		f.fin = true
-	}else {
+	} else {
 		f.fin = false
 	}
 
-	if binary[1] == 1 {
+	if strings.Compare(string(binary[1]), "1") == 0 {
 		f.rsv1 = true
-	}else {
+	} else {
 		f.rsv1 = false
 	}
 
-	if binary[2] == 1 {
+	if strings.Compare(string(binary[2]), "1") == 0 {
 		f.rsv2 = true
-	}else {
+	} else {
 		f.rsv2 = false
 	}
 
-	if binary[3] == 1 {
+	if strings.Compare(string(binary[3]), "1") == 0 {
 		f.rsv3 = true
-	}else {
+	} else {
 		f.rsv3 = false
 	}
 
-	opcode64, err := strconv.ParseUint("0000" + binary[4:8], 2, 64)
+	opcode64, err := strconv.ParseUint("0000"+binary[4:8], 2, 64)
 	if err != nil {
 		return nil, err
 	}
 
 	f.opcode = uint8(opcode64)
 
-	if binary[8] == 1 {
+	if strings.Compare(string(binary[8]), "1") == 0 {
 		f.mask = true
-	}else {
+	} else {
 		f.mask = false
 	}
- 
+
 	maskingKeyBit := 16
 
-	f.payloadLength, err = strconv.ParseUint("0" + binary[9:16], 2, 64)
+	f.payloadLength, err = strconv.ParseUint("0"+binary[9:16], 2, 64)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +93,7 @@ func ParseFrame(data []byte) (*Frame, error) {
 			return nil, err
 		}
 		maskingKeyBit = 32
-	}else if f.payloadLength == 128 {
+	} else if f.payloadLength == 128 {
 		f.payloadLength, err = strconv.ParseUint(binary[16:80], 2, 64)
 		if err != nil {
 			return nil, err
@@ -103,34 +102,33 @@ func ParseFrame(data []byte) (*Frame, error) {
 	}
 
 	if f.mask {
-		maskingKey64, err := strconv.ParseUint("0000" + binary[maskingKeyBit:maskingKeyBit+32], 2, 64)
+		maskingKey64, err := strconv.ParseUint("0000"+binary[maskingKeyBit:maskingKeyBit+32], 2, 64)
 		if err != nil {
 			return nil, err
 		}
 		f.maskingKey = uint32(maskingKey64)
 	}
 
-
 	f.payloadData = make([]byte, int(f.payloadLength))
 
-	fmt.Printf("fin: %t\n",f.fin)
-	fmt.Printf("rsv1: %t\n",f.rsv1)
-	fmt.Printf("rsv2: %t\n",f.rsv2)
-	fmt.Printf("rsv3: %t\n",f.rsv3)
-	fmt.Printf("opcode: %d\n",f.opcode)
-	fmt.Printf("mask: %t\n",f.mask)
-	fmt.Printf("payload length: %d\n",f.payloadLength)
-	fmt.Printf("masking key: %d\n",f.maskingKey)
+	fmt.Printf("fin: %t\n", f.fin)
+	fmt.Printf("rsv1: %t\n", f.rsv1)
+	fmt.Printf("rsv2: %t\n", f.rsv2)
+	fmt.Printf("rsv3: %t\n", f.rsv3)
+	fmt.Printf("opcode: %d\n", f.opcode)
+	fmt.Printf("mask: %t\n", f.mask)
+	fmt.Printf("payload length: %d\n", f.payloadLength)
+	fmt.Printf("masking key: %d\n", f.maskingKey)
 
 	start := maskingKeyBit
 	if f.mask {
-		start = start + 32	
-	} 
-	
+		start = start + 32
+	}
+
 	end := start + 8
 
 	for i := 0; i < int(f.payloadLength); i++ {
-		byte64, err := strconv.ParseUint("0" + binary[start:end], 2, 64)
+		byte64, err := strconv.ParseUint("0"+binary[start:end], 2, 64)
 		if err != nil {
 			return nil, err
 		}
@@ -138,6 +136,8 @@ func ParseFrame(data []byte) (*Frame, error) {
 		start = end
 		end = start + 8
 	}
+
+	fmt.Printf("%d\n", f.payloadData)
 
 	return f, nil
 }
