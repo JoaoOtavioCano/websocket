@@ -113,15 +113,6 @@ func ParseFrame(data []byte) (*Frame, error) {
 
 	f.payloadData = make([]byte, int(f.payloadLength))
 
-	fmt.Printf("fin: %t\n", f.fin)
-	fmt.Printf("rsv1: %t\n", f.rsv1)
-	fmt.Printf("rsv2: %t\n", f.rsv2)
-	fmt.Printf("rsv3: %t\n", f.rsv3)
-	fmt.Printf("opcode: %d\n", f.opcode)
-	fmt.Printf("mask: %t\n", f.mask)
-	fmt.Printf("payload length: %d\n", f.payloadLength)
-	fmt.Printf("masking key: %d\n", f.maskingKey)
-
 	start := maskingKeyBit
 	if f.mask {
 		start = start + 32
