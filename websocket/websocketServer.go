@@ -78,20 +78,25 @@ func (ws *WebSocketServer) ReadMessage() ([]byte, error) {
 
 	f, err := ParseFrame(buf)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 
-	//fmt.Println(buf)
-	fmt.Println(f.encode())
+	if !f.mask {
+		return nil, fmt.Errorf("unmasked data received")
+	}
 
-	return f.payloadData, err
+	return f.payloadData, nil
 }
 
 func (ws *WebSocketServer) Write(data []byte) error {
 	f := newFrame(textFrame, false, data)
 
-	_, err := ws.conn.Write(f.encode())
+	encodedFrame, err := f.encode()
+	if err != nil {
+		return err
+	}
+
+	_, err = ws.conn.Write(encodedFrame)
 	if err != nil {
 		return err
 	}

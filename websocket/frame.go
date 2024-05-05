@@ -185,49 +185,41 @@ func newMaskingKey() (maskingKey [4]byte) {
 	return maskingKey
 }
 
-func (f *Frame) encode() []byte {
+func (f *Frame) encode() ([]byte, error){
 	var bitRespresentation string
-
-	fmt.Println(bitRespresentation)
 	
 	//if f.fin {
 	//	bitRespresentation += "1"
 	//} else {
 	//	bitRespresentation += "0"
 	//}
-	f.fin = true
+	bitRespresentation += "1"
 
-	fmt.Println(bitRespresentation)
 	if f.rsv1 {
 		bitRespresentation += "1"
 	} else {
 		bitRespresentation += "0"
 	}
-	fmt.Println(bitRespresentation)
 
 	if f.rsv2 {
 		bitRespresentation += "1"
 	} else {
 		bitRespresentation += "0"
 	}
-	fmt.Println(bitRespresentation)
 
 	if f.rsv3 {
 		bitRespresentation += "1"
 	} else {
 		bitRespresentation += "0"
 	}
-	fmt.Println(bitRespresentation)
 
 	bitRespresentation += fmt.Sprintf("%08b", f.opcode)[4:8]
-	fmt.Println(bitRespresentation)
 
 	if f.mask {
 		bitRespresentation += "1"
 	} else {
 		bitRespresentation += "0"
 	}
-	fmt.Println(bitRespresentation)
 
 	if f.payloadLength <= 126 {
 		bitRespresentation += fmt.Sprintf("%08b", f.payloadLength)[1:8]
@@ -238,20 +230,48 @@ func (f *Frame) encode() []byte {
 		bitRespresentation += fmt.Sprintf("%08b", uint8(128))[1:8]
 		bitRespresentation += fmt.Sprintf("%064b", f.payloadLength)
 	}
-	fmt.Println(bitRespresentation)
 
 	if f.mask {
 		for i := 0; i < 4; i++ {
 			bitRespresentation += fmt.Sprintf("%08b", f.maskingKey[i])
 		}
 	}
-	fmt.Println(bitRespresentation)
 
 	var payloadData []byte
-	if f.mask{
+	if f.mask {
 		payloadData = maskData(f.maskingKey, f.payloadData) 
+	}else {
+		payloadData = f.payloadData
 	}
-	encodedData := bytes.Join([][]byte{[]byte(bitRespresentation), payloadData}, nil)
 
-	return encodedData
+	byteSlice, err := bitStringToBytes(bitRespresentation)
+	if err != nil {
+		return nil, err
+	} 
+
+	encodedData := bytes.Join([][]byte{byteSlice, payloadData}, nil)
+
+	return encodedData, nil
+}
+
+
+func bitStringToBytes(bitString string) ([]byte, error) {
+	numberOfBytes := len(bitString)/8
+
+	var result []byte
+	
+	firstBit := 0
+	lastBit := firstBit + 8
+
+	for i := 0; i < numberOfBytes; i++ {
+		a, err := strconv.ParseUint(bitString[firstBit:lastBit], 2, 8)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, byte(a))
+		firstBit = lastBit
+		lastBit = firstBit + 8
+	}
+
+	return result, nil
 }
