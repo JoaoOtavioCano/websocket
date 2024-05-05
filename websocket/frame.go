@@ -1,19 +1,21 @@
 package websocket
 
 import (
+	"bytes"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 )
 
 type Frame struct {
-	fin           bool   // 1 bit
-	rsv1          bool   // 1 bit
-	rsv2          bool   // 1 bit
-	rsv3          bool   // 1 bit
-	opcode        uint8  // 4 bits
-	mask          bool   // 1 bit
-	payloadLength uint64 // 7 bits or 7 + 16 bits or 7 + 64 bits
+	fin           bool    // 1 bit
+	rsv1          bool    // 1 bit
+	rsv2          bool    // 1 bit
+	rsv3          bool    // 1 bit
+	opcode        uint8   // 4 bits
+	mask          bool    // 1 bit
+	payloadLength uint64  // 7 bits or 7 + 16 bits or 7 + 64 bits
 	maskingKey    [4]byte //This field is present if the mask bit is set to 1 and is absent if the mask bit is set to 0.
 	payloadData   []byte
 }
@@ -36,6 +38,25 @@ const (
 	controlFrameE   = byte(0xE)
 	controlFrameF   = byte(0xF)
 )
+
+func newFrame(opcode uint8, mask bool, data []byte) *Frame {
+	var maskingKey [4]byte
+	if mask {
+		maskingKey = newMaskingKey()
+	}
+
+	return &Frame{
+		fin:           false,
+		rsv1:          false,
+		rsv2:          false,
+		rsv3:          false,
+		opcode:        opcode,
+		mask:          mask,
+		payloadLength: uint64(len(data)),
+		maskingKey:    maskingKey,
+		payloadData:   data,
+	}
+}
 
 func ParseFrame(data []byte) (*Frame, error) {
 
@@ -102,7 +123,7 @@ func ParseFrame(data []byte) (*Frame, error) {
 	}
 
 	if f.mask {
-		for i := 0; i < 4; i++{
+		for i := 0; i < 4; i++ {
 			maskingKey, err := strconv.ParseUint(binary[maskingKeyBit+(8*i):maskingKeyBit+(8*(i+1))], 2, 64)
 			if err != nil {
 				return nil, err
@@ -129,7 +150,7 @@ func ParseFrame(data []byte) (*Frame, error) {
 		start = end
 		end = start + 8
 	}
-	
+
 	f.payloadData = maskData(f.maskingKey, f.payloadData)
 
 	return f, nil
@@ -146,12 +167,91 @@ func convertToBinaryRep(data []byte) string {
 	return binaryRep
 }
 
-func maskData(maskingKey [4]byte, originalData []byte) []byte{
+func maskData(maskingKey [4]byte, originalData []byte) []byte {
 	transformedData := make([]byte, len(originalData))
 
 	for i, _ := range originalData {
-		transformedData[i] =  originalData[i] ^ maskingKey[i%4]
+		transformedData[i] = originalData[i] ^ maskingKey[i%4]
 	}
 
 	return transformedData
+}
+
+func newMaskingKey() (maskingKey [4]byte) {
+	for i := 0; i < 4; i++ {
+		maskingKey[i] = byte(rand.Intn(255))
+	}
+
+	return maskingKey
+}
+
+func (f *Frame) encode() []byte {
+	var bitRespresentation string
+
+	fmt.Println(bitRespresentation)
+	
+	//if f.fin {
+	//	bitRespresentation += "1"
+	//} else {
+	//	bitRespresentation += "0"
+	//}
+	f.fin = true
+
+	fmt.Println(bitRespresentation)
+	if f.rsv1 {
+		bitRespresentation += "1"
+	} else {
+		bitRespresentation += "0"
+	}
+	fmt.Println(bitRespresentation)
+
+	if f.rsv2 {
+		bitRespresentation += "1"
+	} else {
+		bitRespresentation += "0"
+	}
+	fmt.Println(bitRespresentation)
+
+	if f.rsv3 {
+		bitRespresentation += "1"
+	} else {
+		bitRespresentation += "0"
+	}
+	fmt.Println(bitRespresentation)
+
+	bitRespresentation += fmt.Sprintf("%08b", f.opcode)[4:8]
+	fmt.Println(bitRespresentation)
+
+	if f.mask {
+		bitRespresentation += "1"
+	} else {
+		bitRespresentation += "0"
+	}
+	fmt.Println(bitRespresentation)
+
+	if f.payloadLength <= 126 {
+		bitRespresentation += fmt.Sprintf("%08b", f.payloadLength)[1:8]
+	} else if f.payloadLength <= 65535 {
+		bitRespresentation += fmt.Sprintf("%08b", uint8(127))[1:8]
+		bitRespresentation += fmt.Sprintf("%016b", f.payloadLength)
+	} else {
+		bitRespresentation += fmt.Sprintf("%08b", uint8(128))[1:8]
+		bitRespresentation += fmt.Sprintf("%064b", f.payloadLength)
+	}
+	fmt.Println(bitRespresentation)
+
+	if f.mask {
+		for i := 0; i < 4; i++ {
+			bitRespresentation += fmt.Sprintf("%08b", f.maskingKey[i])
+		}
+	}
+	fmt.Println(bitRespresentation)
+
+	var payloadData []byte
+	if f.mask{
+		payloadData = maskData(f.maskingKey, f.payloadData) 
+	}
+	encodedData := bytes.Join([][]byte{[]byte(bitRespresentation), payloadData}, nil)
+
+	return encodedData
 }

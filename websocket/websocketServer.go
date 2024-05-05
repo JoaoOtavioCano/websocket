@@ -1,18 +1,18 @@
 package websocket
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
 type WebSocketServer struct {
 	listener net.TCPListener
-	conn   net.Conn
+	conn     net.Conn
 }
 
 type HandshakeRequest struct {
@@ -66,25 +66,37 @@ func (ws *WebSocketServer) ListenAndServe() {
 			break
 		}
 	}
-	fmt.Println("Saiu")
 }
 
-func (ws * WebSocketServer) ReadMessage() {
-	buf := make([]byte, 4096)
+func (ws *WebSocketServer) ReadMessage() ([]byte, error) {
 
-	fmt.Println("Read")
+	reader := bufio.NewReader(ws.conn)
 
-	for {
-		_, err := ws.conn.Read(buf)
-		if err != nil {
-			fmt.Printf("Error reading from socket: %v\n", err)
-			return
-		}
+	buf := make([]byte, 30)
 
-		break
+	reader.Read(buf)
+
+	f, err := ParseFrame(buf)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
 	}
 
-	fmt.Println(string(buf))
+	//fmt.Println(buf)
+	fmt.Println(f.encode())
+
+	return f.payloadData, err
+}
+
+func (ws *WebSocketServer) Write(data []byte) error {
+	f := newFrame(textFrame, false, data)
+
+	_, err := ws.conn.Write(f.encode())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (ws *WebSocketServer) handshake(conn net.Conn) {
@@ -105,42 +117,41 @@ func (ws *WebSocketServer) handshake(conn net.Conn) {
 	}
 
 	/*
-	resp := &HandshakeResponse{}
+		resp := &HandshakeResponse{}
 
-	checkReqMethod := r.method == "GET"
-	checkUpgradeHeader := r.upgrade != "" && strings.Compare(r.upgrade, "websocket") == 0
-	checkConnectionHeader := r.connection != "" && r.connection == "Upgrade"
-	checkWebsocketVersionHeader := r.secWebsocketVersion != "" && r.secWebsocketVersion == "13"
-	checkWebsocketKeyHeader := r.secWebsocketKey != ""
+		checkReqMethod := r.method == "GET"
+		checkUpgradeHeader := r.upgrade != "" && strings.Compare(r.upgrade, "websocket") == 0
+		checkConnectionHeader := r.connection != "" && r.connection == "Upgrade"
+		checkWebsocketVersionHeader := r.secWebsocketVersion != "" && r.secWebsocketVersion == "13"
+		checkWebsocketKeyHeader := r.secWebsocketKey != ""
 
-	if !checkReqMethod || !checkUpgradeHeader || !checkConnectionHeader || !checkWebsocketKeyHeader || !checkWebsocketVersionHeader {
-		resp.statusCode = http.StatusBadRequest
+		if !checkReqMethod || !checkUpgradeHeader || !checkConnectionHeader || !checkWebsocketKeyHeader || !checkWebsocketVersionHeader {
+			resp.statusCode = http.StatusBadRequest
+			resp.statusText = http.StatusText(resp.statusCode)
+			if _, err := conn.Write(resp.Encode()); err != nil {
+				fmt.Println(err)
+			}
+			return
+		}
+
+		websocketKey := r.secWebsocketKey
+		websocketAcceptValue := CreateWebsocketAcceptValue(websocketKey)
+
+		resp.secWebsocketAccept = websocketAcceptValue
+		resp.upgrade = "websocket"
+		resp.connection = "Upgrade"
+		resp.statusCode = http.StatusSwitchingProtocols
 		resp.statusText = http.StatusText(resp.statusCode)
+		resp.proto = "HTTP/1.0"
+
+		fmt.Println(resp)
+
 		if _, err := conn.Write(resp.Encode()); err != nil {
 			fmt.Println(err)
+			return
 		}
-		return
-	}
-
-	websocketKey := r.secWebsocketKey
-	websocketAcceptValue := CreateWebsocketAcceptValue(websocketKey)
-
-	resp.secWebsocketAccept = websocketAcceptValue
-	resp.upgrade = "websocket"
-	resp.connection = "Upgrade"
-	resp.statusCode = http.StatusSwitchingProtocols
-	resp.statusText = http.StatusText(resp.statusCode)
-	resp.proto = "HTTP/1.0"
-
-	fmt.Println(resp)
-
-	if _, err := conn.Write(resp.Encode()); err != nil {
-		fmt.Println(err)
-		return
-	}
 
 	*/
-
 
 	websocketKey := r.secWebsocketKey
 	websocketAcceptValue := CreateWebsocketAcceptValue(websocketKey)
@@ -152,11 +163,11 @@ func (ws *WebSocketServer) handshake(conn net.Conn) {
 
 	resp := &http.Response{
 		StatusCode: http.StatusSwitchingProtocols,
-		Status: http.StatusText(http.StatusSwitchingProtocols),
-		Header: *h,
+		Status:     http.StatusText(http.StatusSwitchingProtocols),
+		Header:     *h,
 	}
 
-	if err := resp.Write(conn) ; err != nil {
+	if err := resp.Write(conn); err != nil {
 		fmt.Println(err)
 		return
 	}
@@ -210,14 +221,15 @@ func parseHandshakeRequest(buffer []byte) *HandshakeRequest {
 	return req
 }
 
+/*
 func (r *HandshakeResponse) Encode() (data []byte) {
 
 	if r.statusCode != http.StatusSwitchingProtocols {
 		return []byte(fmt.Sprintf("%s %d %s\n", r.proto, r.statusCode, r.statusText))
 	}
 
-	return []byte(fmt.Sprintf("%s %d %s\nConnection: %s\nSec-Websocket-Accept: %s\nUpgrade: %s\n", 
-	r.proto, r.statusCode, r.statusText, r.connection, r.secWebsocketAccept, r.upgrade))
+	return []byte(fmt.Sprintf("%s %d %s\nConnection: %s\nSec-Websocket-Accept: %s\nUpgrade: %s\n",
+		r.proto, r.statusCode, r.statusText, r.connection, r.secWebsocketAccept, r.upgrade))
 }
 
 func (r *HandshakeResponse) Decode(data []byte) {
@@ -231,3 +243,4 @@ func (r *HandshakeResponse) Decode(data []byte) {
 	r.upgrade = strings.Split(strings.Split(dataString, "\n")[3], " ")[1]
 
 }
+*/
